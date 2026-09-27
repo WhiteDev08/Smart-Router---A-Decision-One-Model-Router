@@ -142,3 +142,10 @@ Uses the state saved by the previous call to pick the right prompt and generate 
 
 - `/generate` depends on `/route_state` having been called first for that `user_id` — it reads the previously saved `genre`/`ques` from MongoDB rather than taking a fresh question as input.
 - CORS is wide open (`allow_origins=["*"]`) for local development convenience; tighten this before deploying anywhere public.
+
+## Misc
+<img width="1238" height="728" alt="Screenshot 2026-09-27 125701" src="https://github.com/user-attachments/assets/e476859a-93c2-45e0-aaf3-986fea913081" />
+<img width="1227" height="803" alt="Screenshot 2026-09-27 125723" src="https://github.com/user-attachments/assets/9fa3d85a-5078-4ea1-8c19-d25eff3089f7" />
+<img width="1242" height="870" alt="Screenshot 2026-09-27 125733" src="https://github.com/user-attachments/assets/80ac435d-0b36-4906-aaf0-bca051e7b64b" />
+
+
