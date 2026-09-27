@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Jev Router</title>
+
+    <!-- Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- HTML Sanitizer -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+
+    <!-- Retro pixel fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --px-green: #39ff14;
+            --px-green-dim: #1f9e0c;
+            --px-amber: #ffb000;
+            --px-red: #ff2e4c;
+            --px-black: #000000;
+            --px-panel: #050805;
+        }
+
+        html, body {
+            background: var(--px-black);
+        }
+
+        #bgFx {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            opacity: 0.85;
+            pointer-events: none;
+        }
+
+        body {
+            font-family: 'VT323', monospace;
+            min-height: 100vh;
+            background: var(--px-black);
+            color: var(--px-green);
+            padding: 40px 20px;
+            font-size: 19px;
+            position: relative;
+            overflow-x: hidden;
+            image-rendering: pixelated;
+        }
+
+        /* CRT SCANLINES + FLICKER */
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 50;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.35) 0px,
+                rgba(0, 0, 0, 0.35) 1px,
+                transparent 2px,
+                transparent 3px
+            );
+            mix-blend-mode: multiply;
+        }
+
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 51;
+            background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.65) 100%);
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            92% { opacity: 1; }
+            93% { opacity: 0.82; }
+            94% { opacity: 1; }
+            96% { opacity: 0.9; }
+            97% { opacity: 1; }
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            animation: flicker 6s infinite;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* TOP BAR / CLOCK */
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 2px solid var(--px-green-dim);
+            padding: 8px 16px;
+            margin-bottom: 20px;
+            background: var(--px-panel);
+            box-shadow: 0 0 12px rgba(57, 255, 20, 0.25) inset;
+        }
+
+        .topbar .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: var(--px-red);
+            box-shadow: 0 0 8px var(--px-red);
+            margin-right: 10px;
+            animation: blink 1.4s steps(1) infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0.15; }
+        }
+
+        .topbar .sys {
+            font-size: 16px;
+            letter-spacing: 1px;
+            color: var(--px-green-dim);
+            text-transform: uppercase;
+        }
+
+        #clock {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 15px;
+            color: var(--px-amber);
+            text-shadow: 0 0 6px var(--px-amber), 0 0 14px rgba(255, 176, 0, 0.5);
+            letter-spacing: 1px;
+        }
+
+        /* HEADER */
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 28px;
+            color: var(--px-green);
+            text-shadow:
+                0 0 6px var(--px-green),
+                0 0 18px rgba(57, 255, 20, 0.6),
+                3px 3px 0 rgba(57, 255, 20, 0.15);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .header h1::after {
+            content: "_";
+            animation: blink 1s steps(1) infinite;
+        }
+
+        .header p {
+            color: var(--px-green-dim);
+            font-size: 18px;
+            letter-spacing: 0.5px;
+        }
+
+        .header p::before {
+            content: "> ";
+        }
+
+        /* PIXEL CARD */
+
+        .card {
+            background: var(--px-panel);
+            border: 2px solid var(--px-green-dim);
+            box-shadow:
+                0 0 0 2px #000,
+                0 0 18px rgba(57, 255, 20, 0.15),
+                inset 0 0 20px rgba(0, 0, 0, 0.6);
+            border-radius: 0;
+            padding: 25px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        /* pixel-corner notches */
+        .card::before,
+        .card::after {
+            content: "";
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: var(--px-green-dim);
+            top: -2px;
+        }
+
+        .card::before { left: -2px; }
+        .card::after { right: -2px; }
+
+        /* INPUTS */
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 16px;
+            color: var(--px-green);
+            font-weight: 400;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        label::before {
+            content: "// ";
+            color: var(--px-green-dim);
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            background: #000;
+            border: 2px solid var(--px-green-dim);
+            color: var(--px-green);
+            border-radius: 0;
+            padding: 12px 14px;
+            font-size: 18px;
+            font-family: 'VT323', monospace;
+            outline: none;
+            transition: 0.15s;
+            caret-color: var(--px-green);
+        }
+
+        input::placeholder,
+        textarea::placeholder {
+            color: rgba(57, 255, 20, 0.35);
+        }
+
+        input:focus,
+        textarea:focus {
+            border-color: var(--px-green);
+            box-shadow: 0 0 0 3px rgba(57, 255, 20, 0.15), 0 0 14px rgba(57, 255, 20, 0.4);
+        }
+
+        textarea {
+            min-height: 130px;
+            resize: vertical;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        /* BUTTON */
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid var(--px-green);
+            border-radius: 0;
+            background: #000;
+            color: var(--px-green);
+            font-size: 18px;
+            font-family: 'Press Start 2P', monospace;
+            font-weight: 400;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: 0.15s;
+            text-transform: uppercase;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--px-green);
+            color: #000;
+            box-shadow: 0 0 20px rgba(57, 255, 20, 0.6);
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            border-color: var(--px-green-dim);
+            color: var(--px-green-dim);
+        }
+
+        /* STATUS */
+
+        .status {
+            display: none;
+            padding: 12px 15px;
+            border-radius: 0;
+            margin-top: 15px;
+            font-size: 16px;
+            border: 2px dashed;
+        }
+
+        .status.loading {
+            display: block;
+            background: rgba(57, 255, 20, 0.05);
+            border-color: var(--px-green-dim);
+            color: var(--px-green);
+        }
+
+        .status.loading::before {
+            content: "> ";
+        }
+
+        .status.error {
+            display: block;
+            background: rgba(255, 46, 76, 0.08);
+            border-color: var(--px-red);
+            color: var(--px-red);
+            text-shadow: 0 0 6px rgba(255, 46, 76, 0.6);
+        }
+
+        .status.error::before {
+            content: "!! ";
+        }
+
+        /* ROUTING RESULT */
+
+        .result-section {
+            display: none;
+        }
+
+        .result-section.visible {
+            display: block;
+        }
+
+        .section-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 14px;
+            font-weight: 400;
+            margin-bottom: 20px;
+            color: var(--px-amber);
+            text-shadow: 0 0 8px rgba(255, 176, 0, 0.5);
+            letter-spacing: 1px;
+        }
+
+        .section-title::before {
+            content: "[ ";
+        }
+
+        .section-title::after {
+            content: " ]";
+        }
+
+        /* STATS */
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat {
+            background: #000;
+            border: 2px solid var(--px-green-dim);
+            border-radius: 0;
+            padding: 16px;
+        }
+
+        .stat-label {
+            display: block;
+            font-size: 13px;
+            color: var(--px-green-dim);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--px-green);
+            text-shadow: 0 0 6px rgba(57, 255, 20, 0.5);
+        }
+
+        .genre-value {
+            color: var(--px-amber);
+            text-shadow: 0 0 6px rgba(255, 176, 0, 0.5);
+            text-transform: capitalize;
+        }
+
+        /* SCORE BARS */
+
+        .score-container {
+            margin-top: 10px;
+        }
+
+        .score-row {
+            margin-bottom: 18px;
+        }
+
+        .score-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 7px;
+            font-size: 16px;
+        }
+
+        .score-name {
+            color: var(--px-green);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .score-value {
+            color: var(--px-amber);
+            font-weight: 600;
+        }
+
+        .bar {
+            width: 100%;
+            height: 16px;
+            background: #000;
+            border: 2px solid var(--px-green-dim);
+            border-radius: 0;
+            overflow: hidden;
+            padding: 2px;
+        }
+
+        .bar-fill {
+            height: 100%;
+            width: 0%;
+            background: repeating-linear-gradient(
+                90deg,
+                var(--px-green) 0px,
+                var(--px-green) 6px,
+                #062 6px,
+                #062 8px
+            );
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.6);
+            border-radius: 0;
+            transition: width 0.6s steps(20);
+        }
+
+        /* ANSWER */
+
+        .answer-card {
+            margin-top: 20px;
+        }
+
+        #answer {
+            color: var(--px-green);
+            line-height: 1.6;
+            font-size: 18px;
+        }
+
+        /* MARKDOWN */
+
+        #answer h1,
+        #answer h2,
+        #answer h3,
+        #answer h4 {
+            color: var(--px-amber);
+            text-shadow: 0 0 6px rgba(255, 176, 0, 0.4);
+            margin-top: 24px;
+            margin-bottom: 12px;
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        #answer h1 {
+            font-size: 20px;
+        }
+
+        #answer h2 {
+            font-size: 17px;
+        }
+
+        #answer h3 {
+            font-size: 14px;
+        }
+
+        #answer p {
+            margin-bottom: 14px;
+        }
+
+        #answer ul,
+        #answer ol {
+            margin: 10px 0 16px 25px;
+        }
+
+        #answer li {
+            margin-bottom: 7px;
+        }
+
+        #answer li::marker {
+            color: var(--px-green-dim);
+        }
+
+        #answer strong {
+            color: var(--px-amber);
+        }
+
+        #answer em {
+            color: #7dffb8;
+        }
+
+        #answer code {
+            background: #001a00;
+            border: 1px solid var(--px-green-dim);
+            color: var(--px-green);
+            padding: 3px 7px;
+            border-radius: 0;
+            font-size: 14px;
+        }
+
+        #answer pre {
+            background: #000;
+            border: 2px solid var(--px-green-dim);
+            border-radius: 0;
+            padding: 16px;
+            overflow-x: auto;
+            margin: 15px 0;
+            box-shadow: inset 0 0 12px rgba(57, 255, 20, 0.15);
+        }
+
+        #answer pre code {
+            background: transparent;
+            border: none;
+            padding: 0;
+            color: var(--px-green);
+            font-size: 14px;
+        }
+
+        #answer blockquote {
+            border-left: 3px solid var(--px-amber);
+            padding-left: 15px;
+            margin: 15px 0;
+            color: var(--px-green-dim);
+        }
+
+        #answer table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 18px 0;
+        }
+
+        #answer th,
+        #answer td {
+            border: 1px solid var(--px-green-dim);
+            padding: 10px;
+            text-align: left;
+        }
+
+        #answer th {
+            background: #001a00;
+            color: var(--px-amber);
+        }
+
+        #answer td {
+            background: rgba(0, 20, 0, 0.5);
+        }
+
+        #answer a {
+            color: var(--px-amber);
+            text-decoration: none;
+            border-bottom: 1px dotted var(--px-amber);
+        }
+
+        #answer a:hover {
+            text-shadow: 0 0 6px var(--px-amber);
+        }
+
+        #answer hr {
+            border: none;
+            border-top: 2px dashed var(--px-green-dim);
+            margin: 25px 0;
+        }
+
+        /* MOBILE */
+
+        @media (max-width: 600px) {
+            body {
+                padding: 20px 12px;
+                font-size: 17px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .topbar {
+                flex-direction: column;
+                gap: 8px;
+                align-items: flex-start;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 18px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<canvas id="bgFx"></canvas>
+
+<div class="container">
+
+    <!-- TOP BAR -->
+
+    <div class="topbar">
+        <span class="sys"><span class="dot"></span>SYS.ONLINE</span>
+        <span id="clock">00:00:00</span>
+    </div>
+
+    <!-- HEADER -->
+
+    <div class="header">
+        <h1>JEV ROUTER</h1>
+        <p>JEV decides what type of question you asked before Gemini generates the answer.</p>
+    </div>
+
+
+    <!-- INPUT CARD -->
+
+    <div class="card">
+
+        <div class="input-group">
+            <label for="userId">User ID</label>
+
+            <input
+                type="text"
+                id="userId"
+                placeholder="Enter your user ID"
+            >
+        </div>
+
+
+        <div class="input-group">
+            <label for="question">Your Question</label>
+
+            <textarea
+                id="question"
+                placeholder="Ask something..."
+            ></textarea>
+        </div>
+
+
+        <button id="submitBtn" onclick="processQuestion()">
+            Route & Generate
+        </button>
+
+
+        <div id="status" class="status"></div>
+
+    </div>
+
+
+    <!-- ROUTING RESULT -->
+
+    <div id="routingSection" class="card result-section">
+
+        <div class="section-title">
+            JEV Routing Result
+        </div>
+
+
+        <div class="stats">
+
+            <!-- GENRE -->
+
+            <div class="stat">
+                <span class="stat-label">
+                    Selected Genre
+                </span>
+
+                <span
+                    id="genre"
+                    class="stat-value genre-value"
+                >
+                    -
+                </span>
+            </div>
+
+
+            <!-- JEV TIME -->
+
+            <div class="stat">
+                <span class="stat-label">
+                    JEV Routing Time
+                </span>
+
+                <span
+                    id="jevTime"
+                    class="stat-value"
+                >
+                    -
+                </span>
+            </div>
+
+        </div>
+
+
+        <!-- SCORES -->
+
+        <div class="section-title">
+            JEV Scores
+        </div>
+
+        <div class="score-container">
+
+            <div class="score-row">
+
+                <div class="score-header">
+                    <span class="score-name">
+                        Coding
+                    </span>
+
+                    <span
+                        id="codingScore"
+                        class="score-value"
+                    >
+                        0%
+                    </span>
+                </div>
+
+                <div class="bar">
+                    <div
+                        id="codingBar"
+                        class="bar-fill"
+                    ></div>
+                </div>
+
+            </div>
+
+
+            <div class="score-row">
+
+                <div class="score-header">
+                    <span class="score-name">
+                        General Query
+                    </span>
+
+                    <span
+                        id="generalScore"
+                        class="score-value"
+                    >
+                        0%
+                    </span>
+                </div>
+
+                <div class="bar">
+                    <div
+                        id="generalBar"
+                        class="bar-fill"
+                    ></div>
+                </div>
+
+            </div>
+
+
+            <div class="score-row">
+
+                <div class="score-header">
+                    <span class="score-name">
+                        Summarization
+                    </span>
+
+                    <span
+                        id="summaryScore"
+                        class="score-value"
+                    >
+                        0%
+                    </span>
+                </div>
+
+                <div class="bar">
+                    <div
+                        id="summaryBar"
+                        class="bar-fill"
+                    ></div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ANSWER -->
+
+    <div id="answerSection" class="card answer-card result-section">
+
+        <div class="section-title">
+            Gemini Response
+        </div>
+
+        <div id="answer"></div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+    /* =========================================
+       BACKGROUND PIXEL DRIFT (subtle, decorative)
+       ========================================= */
+
+    (function initBgFx() {
+
+        const canvas = document.getElementById("bgFx");
+        const ctx = canvas.getContext("2d");
+
+        let particles = [];
+
+        function resize() {
+
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const count = Math.floor((canvas.width * canvas.height) / 9000);
+
+            particles = new Array(count).fill(0).map(() => spawn());
+        }
+
+        function spawn() {
+
+            return {
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() < 0.2 ? 4 : 3,
+                speed: 0.2 + Math.random() * 0.5,
+                drift: (Math.random() - 0.5) * 0.15,
+                phase: Math.random() * Math.PI * 2,
+                color: Math.random() < 0.85 ? "57, 255, 20" : "255, 176, 0"
+            };
+        }
+
+        function draw(time) {
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (const p of particles) {
+
+                const twinkle = 0.35 + 0.65 * Math.abs(Math.sin(time / 900 + p.phase));
+
+                ctx.fillStyle = `rgba(${p.color}, ${twinkle})`;
+                ctx.shadowColor = `rgba(${p.color}, ${twinkle})`;
+                ctx.shadowBlur = p.size * 2;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+
+                p.y -= p.speed;
+                p.x += p.drift;
+
+                if (p.y < -10) {
+                    p.y = canvas.height + 10;
+                    p.x = Math.random() * canvas.width;
+                }
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener("resize", resize);
+        resize();
+        requestAnimationFrame(draw);
+
+    })();
+
+
+    /* =========================================
+       RETRO CLOCK
+       ========================================= */
+
+    function tickClock() {
+
+        const now = new Date();
+
+        const hh = String(now.getHours()).padStart(2, "0");
+        const mm = String(now.getMinutes()).padStart(2, "0");
+        const ss = String(now.getSeconds()).padStart(2, "0");
+
+        document.getElementById("clock").textContent =
+            `${hh}:${mm}:${ss}`;
+    }
+
+    tickClock();
+    setInterval(tickClock, 1000);
+
+
+    async function processQuestion() {
+
+        const userId =
+            document.getElementById("userId").value.trim();
+
+        const question =
+            document.getElementById("question").value.trim();
+
+        const submitBtn =
+            document.getElementById("submitBtn");
+
+        const status =
+            document.getElementById("status");
+
+        const routingSection =
+            document.getElementById("routingSection");
+
+        const answerSection =
+            document.getElementById("answerSection");
+
+
+        /* VALIDATION */
+
+        if (!userId) {
+
+            showError("Please enter a User ID.");
+
+            return;
+        }
+
+
+        if (!question) {
+
+            showError("Please enter a question.");
+
+            return;
+        }
+
+
+        /* RESET UI */
+
+        routingSection.classList.remove("visible");
+        answerSection.classList.remove("visible");
+
+        document.getElementById("answer").innerHTML = "";
+
+        submitBtn.disabled = true;
+
+        status.className = "status loading";
+        status.textContent = "Routing your question with JEV...";
+
+
+        try {
+
+            /* =========================================
+               STEP 1: JEV ROUTING
+               ========================================= */
+
+            const routeResponse = await fetch(
+                "http://localhost:8000/route_state",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        user_id: userId,
+                        ques: question
+                    })
+                }
+            );
+
+
+            const routeData =
+                await routeResponse.json();
+
+
+            if (!routeResponse.ok) {
+
+                throw new Error(
+                    routeData.detail ||
+                    routeData.error ||
+                    "Routing failed."
+                );
+            }
+
+
+            if (routeData.error) {
+
+                throw new Error(routeData.error);
+            }
+
+
+            /* =========================================
+               DISPLAY JEV RESULT
+               ========================================= */
+
+            document.getElementById("genre").textContent =
+                routeData.genre.replace("_", " ");
+
+
+            /*
+             * JEV time comes from:
+             *
+             * start = time.perf_counter()
+             * classify_question()
+             * end = time.perf_counter()
+             *
+             * Backend returns seconds.
+             */
+
+            document.getElementById("jevTime").textContent =
+                `${routeData.jev_time} seconds`;
+
+
+            /* SCORES */
+
+            const scores =
+                routeData.jev_output;
+
+
+            setScore(
+                "codingScore",
+                "codingBar",
+                scores.coding
+            );
+
+
+            setScore(
+                "generalScore",
+                "generalBar",
+                scores.general_query
+            );
+
+
+            setScore(
+                "summaryScore",
+                "summaryBar",
+                scores.summarization
+            );
+
+
+            routingSection.classList.add("visible");
+
+
+            /* =========================================
+               STEP 2: GEMINI GENERATION
+               ========================================= */
+
+            status.textContent =
+                "Routing complete. Generating answer with Gemini...";
+
+
+            const generateResponse = await fetch(
+                `http://localhost:8000/generate?user_id=${encodeURIComponent(userId)}`,
+                {
+                    method: "POST"
+                }
+            );
+
+
+            const generateData =
+                await generateResponse.json();
+
+
+            if (!generateResponse.ok) {
+
+                throw new Error(
+                    generateData.detail ||
+                    generateData.error ||
+                    "Generation failed."
+                );
+            }
+
+
+            if (generateData.error) {
+
+                throw new Error(generateData.error);
+            }
+
+
+            /* =========================================
+               MARKDOWN → HTML
+               ========================================= */
+
+            const markdown =
+                generateData.answer;
+
+
+            const html =
+                marked.parse(markdown);
+
+
+            /*
+             * Sanitize generated HTML before inserting it
+             * into the DOM.
+             */
+
+            const safeHTML =
+                DOMPurify.sanitize(html);
+
+
+            document.getElementById("answer").innerHTML =
+                safeHTML;
+
+
+            answerSection.classList.add("visible");
+
+
+            status.className = "status";
+            status.style.display = "none";
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            showError(error.message);
+
+        } finally {
+
+            submitBtn.disabled = false;
+
+        }
+    }
+
+
+    /* =========================================
+       SCORE BAR
+       ========================================= */
+
+    function setScore(
+        textId,
+        barId,
+        score
+    ) {
+
+        if (score === undefined || score === null) {
+
+            score = 0;
+
+        }
+
+
+        /*
+         * JEV scores are assumed to be between 0 and 1.
+         *
+         * Example:
+         * 0.91 → 91%
+         */
+
+        const percentage =
+            Math.max(
+                0,
+                Math.min(
+                    100,
+                    score * 100
+                )
+            );
+
+
+        document.getElementById(textId).textContent =
+            `${percentage.toFixed(1)}%`;
+
+
+        document.getElementById(barId).style.width =
+            `${percentage}%`;
+    }
+
+
+    /* =========================================
+       ERROR
+       ========================================= */
+
+    function showError(message) {
+
+        const status =
+            document.getElementById("status");
+
+
+        status.className = "status error";
+
+        status.style.display = "block";
+
+        status.textContent =
+            message;
+    }
+
+</script>
+
+</body>
+</html>
